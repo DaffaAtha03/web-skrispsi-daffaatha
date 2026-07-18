@@ -1,20 +1,14 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 import re
 import time
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sentence_transformers import SentenceTransformer
-
-# Menonaktifkan GUI Matplotlib
-matplotlib.use("Agg")
 
 st.set_page_config(
     page_title="CineMatch — Hybrid Movie Recommender",
@@ -143,7 +137,6 @@ def init_models_and_data():
     return pred_matrix, movies_indo, df_imdb, movies_ml, ratings, vectorizer_nlp, model_nlp, bert_model, g_vecs, i_vecs
 
 (pred_matrix, movies_indo, df_imdb, movies_ml, ratings, vectorizer_nlp, model_nlp, bert_model, g_vecs, i_vecs) = init_models_and_data()
-pivot_matrix = ratings.pivot(index='userId', columns='movieId', values='rating')
 
 def clean_title(title): return re.sub(r'[^a-z0-9\s]', '', re.sub(r'\(\d{4}\)', '', str(title).lower())).strip()
 def predict_genre_ml(text): return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "Drama"
@@ -196,17 +189,6 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
         if m['title'] not in seen: seen.add(m['title']); deduped.append(m)
     return deduped, predicted_genre, country_mode, year_info
 
-def dark_fig(w, h):
-    fig, ax = plt.subplots(figsize=(w, h)); fig.patch.set_facecolor((0,0,0,0)); ax.set_facecolor((0,0,0,0))
-    for sp in ax.spines.values(): sp.set_edgecolor((1,1,1,0.1))
-    ax.tick_params(colors="#A0A0B5", labelsize=10); ax.title.set_color("#fff")
-    return fig, ax
-def evaluate_relevance(uid=1, k=8, threshold=3.5):
-    if uid not in pivot_matrix.index: return None, None
-    actual = pivot_matrix.loc[uid]; liked = set(actual[actual >= threshold].index)
-    rec = set(pred_matrix.loc[uid].nlargest(k).index) if liked else set()
-    hits = rec & liked; return len(hits)/k if liked else 0, len(hits)/len(liked) if liked else 0
-
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
@@ -220,9 +202,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ====================================================================
-# BINGUNG CARA PAKAINYA? (SUDAH DIPERJELAS)
-# ====================================================================
 with st.expander("💡 Bingung cara pakainya? Klik di sini untuk panduan lengkap", expanded=False):
     st.markdown("""
     <div style="color: #A0A0B5; font-size: 0.9rem; line-height: 1.6; margin-bottom: 10px;">
@@ -243,7 +222,7 @@ c0, c1, c2, c3, c4 = st.columns([0.8, 1.8, 2.2, 1.7, 1.5])
 with c0: st.markdown("<p style='font-size:0.75rem;color:#A0A0B5; font-weight:600; margin-top:10px;'>🔥 Populer:</p>", unsafe_allow_html=True)
 with c1: st.button("💔 sedih baper romantis", type="secondary", use_container_width=True, on_click=quick_search, args=("sedih baper romantis",))
 with c2: st.button("👻 horor menyeramkan indo", type="secondary", use_container_width=True, on_click=quick_search, args=("horor menyeramkan indo",))
-with c3: st.button("🤖 transformers action", type="secondary", use_container_width=True, on_click=quick_search, args=("transformers",)) # Contoh input nama film
+with c3: st.button("🤖 transformers action", type="secondary", use_container_width=True, on_click=quick_search, args=("transformers",)) 
 with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=True, on_click=quick_search, args=("film seru rating tinggi",)) 
 
 col_inp, col_btn = st.columns([5, 1])
@@ -329,64 +308,25 @@ if st.session_state["do_search"]:
                                     theta=['Tema/Cerita', 'Rating SVD', 'Popularitas'], fill='toself', line_color=glow_color
                                 ))
                                 fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False, range=[0, 100])), showlegend=False, height=140, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#A0A0B5", size=8))
-                                st.plotly_chart(fig_radar, use_container_width=True)
+                                st.plotly_chart(fig_radar, use_container_width=True, key=f"radar_{i}_{j}_{title}")
 
                             st.button(f"🔎 Cari Film Mirip", key=f"btn_rel_{i}_{j}", on_click=quick_search, args=(title,), use_container_width=True)
 
         with st.expander("🔬 Mode Sidang Skripsi (Cara Kerja Sistem)", expanded=False):
             st.markdown("Sistem ini menggabungkan NLP (Naive Bayes) untuk ekstraksi niat, CBF (Sentence-BERT) untuk kesamaan konteks/judul, dan CF (SVD Matrix) untuk prediksi rating/kualitas. Skor akhir merupakan kalkulasi Hybrid 50:50.")
 
-        st.markdown("""<div class="section-title"><div class="section-dot"></div><h3>📈 Dashboard Database & Evaluasi</h3></div>""", unsafe_allow_html=True)
-        tab_stat, tab_eval = st.tabs(["📊 Statistik Dataset", "⚙️ Evaluasi SVD"])
-        with tab_stat:
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                st.write("**Top Distribusi Genre dalam Database**")
-                g_counts = df_imdb['genres'].value_counts().head(7).reset_index(); g_counts.columns = ['Genre', 'Jumlah']
-                fig_p = px.pie(g_counts, values='Jumlah', names='Genre', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
-                st.plotly_chart(fig_p, use_container_width=True)
-            with col_s2:
-                st.write("**Sebaran Rilis Film Berdasarkan Tahun**")
-                y_counts = df_imdb['year'].dropna().value_counts().reset_index(); y_counts.columns = ['Tahun', 'Jumlah']
-                fig_b = px.bar(y_counts, x='Tahun', y='Jumlah', color='Jumlah')
-                st.plotly_chart(fig_b, use_container_width=True)
-
-        with tab_eval:
-            col1, col2 = st.columns(2)
-            with col1:
-                # FIX UNTUK ERROR BENTROK MATRIKS:
-                uid_eval = 8 if 8 in pivot_matrix.index else (pivot_matrix.index[0] if len(pivot_matrix) > 0 else 1)
-                if uid_eval in pivot_matrix.index:
-                    u1 = pivot_matrix.loc[uid_eval].dropna()
-                    cids = u1.index.intersection(pred_matrix.columns)
-                    if len(cids) > 0:
-                        yt, yp = u1[cids].values.astype(float), pred_matrix.loc[uid_eval, cids].values.astype(float)
-                        v = ~(np.isnan(yt) | np.isnan(yp))
-                        
-                        if np.sum(v) > 0:  # Memastikan datanya tidak kosong (MENCEGAH ERROR VALUE)
-                            rmse, mae = np.sqrt(mean_squared_error(yt[v], yp[v])), mean_absolute_error(yt[v], yp[v])
-                            fig1, ax1 = dark_fig(6, 4)
-                            b1 = ax1.bar(['RMSE', 'MAE'], [rmse, mae], color=['#e50914', '#f5c518'], width=0.4)
-                            ax1.set_title(f'Tingkat Error Model SVD (Sampel User)', pad=15); ax1.set_ylim(0, max(rmse, mae) + 0.3)
-                            for bar in b1: ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height()+0.02, f'{bar.get_height():.4f}', ha='center', va='bottom', color='#fff')
-                            st.pyplot(fig1); plt.close(fig1)
-                        else:
-                            st.info("⚠️ Data irisan SVD tidak cukup untuk dievaluasi.")
-                    else:
-                        st.info("⚠️ Data irisan SVD tidak cukup untuk dievaluasi.")
-                else:
-                    st.info("⚠️ User tidak ditemukan pada tabel evaluasi.")
-                    
-            with col2:
-                p_at_8, r_at_8 = evaluate_relevance(uid=uid_eval, k=8, threshold=3.5)
-                if p_at_8 is not None and p_at_8 > 0:
-                    fig2, ax2 = dark_fig(6, 4)
-                    b2 = ax2.bar(['Precision @8', 'Recall @8'], [p_at_8*100, r_at_8*100], color=['#45b6fe', '#34d399'], width=0.4)
-                    ax2.set_title('Relevansi Top-8', pad=15); ax2.set_ylim(0, 120)
-                    for bar in b2: ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height()+2, f'{bar.get_height():.2f}%', ha='center', va='bottom', color='#fff')
-                    st.pyplot(fig2); plt.close(fig2)
-                else:
-                    st.info("⚠️ Grafik Presisi & Recall tidak tersedia untuk sampel ini.")
+        st.markdown("""<div class="section-title"><div class="section-dot"></div><h3>📈 Dashboard Statistik Database</h3></div>""", unsafe_allow_html=True)
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.write("**Top Distribusi Genre dalam Database**")
+            g_counts = df_imdb['genres'].value_counts().head(7).reset_index(); g_counts.columns = ['Genre', 'Jumlah']
+            fig_p = px.pie(g_counts, values='Jumlah', names='Genre', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_p, use_container_width=True, key="pie_gen")
+        with col_s2:
+            st.write("**Sebaran Rilis Film Berdasarkan Tahun**")
+            y_counts = df_imdb['year'].dropna().value_counts().reset_index(); y_counts.columns = ['Tahun', 'Jumlah']
+            fig_b = px.bar(y_counts, x='Tahun', y='Jumlah', color='Jumlah')
+            st.plotly_chart(fig_b, use_container_width=True, key="bar_year")
 
 st.markdown("""
 <div class="modern-footer">
