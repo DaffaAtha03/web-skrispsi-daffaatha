@@ -17,16 +17,28 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Inisialisasi Session State
 if "query_input" not in st.session_state:
     st.session_state["query_input"] = ""
 if "do_search" not in st.session_state:
     st.session_state["do_search"] = False
+if "pil_genre_box" not in st.session_state:
+    st.session_state["pil_genre_box"] = "Otomatis (AI)"
 
 def trigger_search():
     st.session_state["do_search"] = True
 
+# Diperbarui: Tombol shortcut mengembalikan filter ke Otomatis
 def quick_search(query):
     st.session_state["query_input"] = query
+    st.session_state["pil_genre_box"] = "Otomatis (AI)" 
+    st.session_state["do_search"] = True
+
+# BARU: Tombol "Cari Film Mirip" akan otomatis mengunci Filter Genre
+def similar_search(title, current_genre):
+    st.session_state["query_input"] = title
+    if current_genre in ["Action", "Comedy", "Drama", "Horror", "Romance"]:
+        st.session_state["pil_genre_box"] = current_genre
     st.session_state["do_search"] = True
 
 # ====================================================================
@@ -229,12 +241,10 @@ col_inp, col_btn = st.columns([5, 1])
 with col_inp: st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
 with col_btn: st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
-# ====================================================================
-# BAGIAN YANG DIUBAH: FILTER SPESIFIK (Ditambah Tombol Cari)
-# ====================================================================
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
-    with f_col1: pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"])
+    # DIPERBARUI: Menambahkan key="pil_genre_box" agar bisa dimanipulasi dari kode di atas
+    with f_col1: pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
     with f_col2: 
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
         pil_rentang_tahun = st.slider("Geser Rentang Tahun Rilis", min_value=1970, max_value=2026, value=(2012, 2021), disabled=not filter_tahun_aktif)
@@ -242,7 +252,6 @@ with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
     
     st.markdown("<hr style='margin: 10px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
     st.button("🎯 Terapkan Filter & Cari Film", type="primary", use_container_width=True, on_click=trigger_search, key="btn_filter_search")
-# ====================================================================
 
 if st.session_state["do_search"]:
     st.session_state["do_search"] = False
@@ -317,7 +326,8 @@ if st.session_state["do_search"]:
                                 fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False, range=[0, 100])), showlegend=False, height=140, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#A0A0B5", size=8))
                                 st.plotly_chart(fig_radar, use_container_width=True, key=f"radar_{i}_{j}_{title}")
 
-                            st.button(f"🔎 Cari Film Mirip", key=f"btn_rel_{i}_{j}", on_click=quick_search, args=(title,), use_container_width=True)
+                            # DIPERBARUI: Menggunakan similar_search dan mengirimkan gen (Genre terdeteksi saat ini)
+                            st.button(f"🔎 Cari Film Mirip", key=f"btn_rel_{i}_{j}", on_click=similar_search, args=(title, gen), use_container_width=True)
 
         with st.expander("🔬 Mode Sidang Skripsi (Cara Kerja Sistem)", expanded=False):
             st.markdown("Sistem ini menggabungkan NLP (Naive Bayes) untuk ekstraksi niat, CBF (Sentence-BERT) untuk kesamaan konteks/judul, dan CF (SVD Matrix) untuk prediksi rating/kualitas. Skor akhir merupakan kalkulasi Hybrid 50:50.")
