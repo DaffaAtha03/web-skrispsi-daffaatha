@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import time
+import random  # <-- TAMBAHAN LIBRARY UNTUK ACAK SHORTCUT
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics.pairwise import cosine_similarity
@@ -17,6 +18,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ====================================================================
+# BANK DATA SHORTCUT (Bisa kamu tambah/ubah sendiri)
+# ====================================================================
+POOL_PROMPTS = [
+    ("💔 sedih baper romantis", "sedih baper romantis"),
+    ("👻 horor menyeramkan", "horor menyeramkan"),
+    ("🤖 action sci-fi seru", "action sci-fi seru"),
+    ("😂 komedi ngakak abis", "komedi ngakak abis"),
+    ("🦸‍♂️ superhero action", "superhero action"),
+    ("🕵️ misteri detektif", "misteri detektif thriller"),
+    ("👨‍👩‍👧 drama keluarga", "drama keluarga menyentuh hati"),
+    ("🧟 zombie survival", "zombie survival horror"),
+    ("🪄 petualangan magis", "petualangan fantasi sihir"),
+    ("🏎️ balapan ekstrim", "balapan mobil action"),
+    ("👽 invasi alien", "invasi alien sci-fi luar angkasa"),
+    ("🗡️ perang kerajaan", "perang kerajaan kolosal sejarah")
+]
+
 # Inisialisasi Session State
 if "query_input" not in st.session_state:
     st.session_state["query_input"] = ""
@@ -25,21 +44,28 @@ if "do_search" not in st.session_state:
 if "pil_genre_box" not in st.session_state:
     st.session_state["pil_genre_box"] = "Otomatis (AI)"
 
+# Inisialisasi 3 Shortcut Acak saat web pertama kali dibuka
+if "shortcut_prompts" not in st.session_state:
+    st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
+
 def trigger_search():
     st.session_state["do_search"] = True
 
-# Diperbarui: Tombol shortcut mengembalikan filter ke Otomatis
 def quick_search(query):
     st.session_state["query_input"] = query
     st.session_state["pil_genre_box"] = "Otomatis (AI)" 
     st.session_state["do_search"] = True
 
-# BARU: Tombol "Cari Film Mirip" akan otomatis mengunci Filter Genre
 def similar_search(title, current_genre):
     st.session_state["query_input"] = title
     if current_genre in ["Action", "Comedy", "Drama", "Horror", "Romance"]:
         st.session_state["pil_genre_box"] = current_genre
     st.session_state["do_search"] = True
+
+# Fungsi baru: Mengacak ulang tombol dan mencari secara acak
+def surprise_me_action():
+    st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
+    quick_search("film seru rating tinggi populer")
 
 # ====================================================================
 # CSS — PREMIUM CINEMATIC + TIKET + 3D HOVER GLOW
@@ -232,10 +258,16 @@ with st.expander("💡 Bingung cara pakainya? Klik di sini untuk panduan lengkap
 st.markdown("### 🎬 Ceritakan atau Ketik Judul Film yang Kamu Suka:")
 c0, c1, c2, c3, c4 = st.columns([0.8, 1.8, 2.2, 1.7, 1.5])
 with c0: st.markdown("<p style='font-size:0.75rem;color:#A0A0B5; font-weight:600; margin-top:10px;'>🔥 Populer:</p>", unsafe_allow_html=True)
-with c1: st.button("💔 sedih baper romantis", type="secondary", use_container_width=True, on_click=quick_search, args=("sedih baper romantis",))
-with c2: st.button("👻 horor menyeramkan indo", type="secondary", use_container_width=True, on_click=quick_search, args=("horor menyeramkan indo",))
-with c3: st.button("🤖 transformers action", type="secondary", use_container_width=True, on_click=quick_search, args=("transformers",)) 
-with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=True, on_click=quick_search, args=("film seru rating tinggi",)) 
+
+# Mengambil variabel shortcut yang sedang terpilih dari Session State
+sc = st.session_state["shortcut_prompts"]
+
+with c1: st.button(sc[0][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[0][1],))
+with c2: st.button(sc[1][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[1][1],))
+with c3: st.button(sc[2][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[2][1],)) 
+
+# DIPERBARUI: Tombol Surprise Me akan mengacak ulang shortcut di atasnya!
+with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=True, on_click=surprise_me_action) 
 
 col_inp, col_btn = st.columns([5, 1])
 with col_inp: st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
@@ -243,7 +275,6 @@ with col_btn: st.button("🚀 Cari Film", type="primary", use_container_width=Tr
 
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
-    # DIPERBARUI: Menambahkan key="pil_genre_box" agar bisa dimanipulasi dari kode di atas
     with f_col1: pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
     with f_col2: 
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
@@ -326,7 +357,6 @@ if st.session_state["do_search"]:
                                 fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False, range=[0, 100])), showlegend=False, height=140, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color="#A0A0B5", size=8))
                                 st.plotly_chart(fig_radar, use_container_width=True, key=f"radar_{i}_{j}_{title}")
 
-                            # DIPERBARUI: Menggunakan similar_search dan mengirimkan gen (Genre terdeteksi saat ini)
                             st.button(f"🔎 Cari Film Mirip", key=f"btn_rel_{i}_{j}", on_click=similar_search, args=(title, gen), use_container_width=True)
 
         with st.expander("🔬 Mode Sidang Skripsi (Cara Kerja Sistem)", expanded=False):
