@@ -229,6 +229,9 @@ col_inp, col_btn = st.columns([5, 1])
 with col_inp: st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
 with col_btn: st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
+# ====================================================================
+# BAGIAN YANG DIUBAH: FILTER SPESIFIK (Ditambah Tombol Cari)
+# ====================================================================
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
     with f_col1: pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"])
@@ -236,6 +239,10 @@ with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
         pil_rentang_tahun = st.slider("Geser Rentang Tahun Rilis", min_value=1970, max_value=2026, value=(2012, 2021), disabled=not filter_tahun_aktif)
     with f_col3: pil_negara = st.selectbox("Asal Negara", ["Campuran (AI)", "Hanya Indonesia", "Hanya Internasional"])
+    
+    st.markdown("<hr style='margin: 10px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
+    st.button("🎯 Terapkan Filter & Cari Film", type="primary", use_container_width=True, on_click=trigger_search, key="btn_filter_search")
+# ====================================================================
 
 if st.session_state["do_search"]:
     st.session_state["do_search"] = False
