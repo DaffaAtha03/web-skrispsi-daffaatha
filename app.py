@@ -36,7 +36,6 @@ POOL_PROMPTS = [
     ("🗡️ perang kerajaan", "perang kerajaan kolosal sejarah")
 ]
 
-# Inisialisasi Session State
 if "query_input" not in st.session_state:
     st.session_state["query_input"] = ""
 if "do_search" not in st.session_state:
@@ -49,25 +48,41 @@ if "shortcut_prompts" not in st.session_state:
 def trigger_search():
     st.session_state["do_search"] = True
 
-# DIPERBARUI: Sekarang setelah dipencet, tombol shortcut akan langsung merotasi dirinya sendiri
 def quick_search(query):
+    # MENAMBAHKAN EFEK TOAST (NOTIFIKASI)
+    st.toast(f"Mencari film dengan nuansa: {query[:15]}...", icon="🔍")
     st.session_state["query_input"] = query
     st.session_state["pil_genre_box"] = "Otomatis (AI)" 
-    st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3) # <-- Trik agar roling otomatis
+    st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
     st.session_state["do_search"] = True
 
 def similar_search(title, current_genre):
+    # MENAMBAHKAN EFEK TOAST (NOTIFIKASI)
+    st.toast(f"Menganalisis kemiripan dengan {title}...", icon="🤖")
     st.session_state["query_input"] = title
     if current_genre in ["Action", "Comedy", "Drama", "Horror", "Romance"]:
         st.session_state["pil_genre_box"] = current_genre
     st.session_state["do_search"] = True
 
 def surprise_me_action():
+    # MENAMBAHKAN ANIMASI BALON DAN TOAST
+    st.balloons()
+    st.toast("Menyiapkan film kejutan untukmu!", icon="🎲")
     st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
-    quick_search("film seru rating tinggi populer")
+    
+    # Pilih satu genre acak untuk surprise
+    random_surprise = random.choice([
+        "film action terbaik sepanjang masa", 
+        "film komedi paling lucu", 
+        "film horor paling menakutkan", 
+        "film sci-fi plot twist"
+    ])
+    st.session_state["query_input"] = random_surprise
+    st.session_state["pil_genre_box"] = "Otomatis (AI)"
+    st.session_state["do_search"] = True
 
 # ====================================================================
-# CSS — PREMIUM CINEMATIC + TIKET + 3D HOVER GLOW
+# CSS — DITAMBAHKAN ANIMASI @keyframes SHINE AGAR JUDUL BERGERAK
 # ====================================================================
 st.markdown("""
 <style>
@@ -86,11 +101,23 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 .hero-content { position: relative; z-index: 1; }
 .hero-eyebrow { font-size: 0.75rem; font-weight: 800; letter-spacing: 4px; color: #e50914; text-transform: uppercase; margin-bottom: 8px; }
+
+/* --- ANIMASI TEKS BERCAHAYA (SHINING) --- */
+@keyframes shine {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+}
 .hero-title {
     font-size: 3.5rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 10px;
-    background: linear-gradient(90deg, #ffffff 0%, #f5c518 50%, #e50914 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; line-height: 1.1;
+    /* Gradient dibuat berulang agar terlihat mengalir */
+    background: linear-gradient(90deg, #ffffff 0%, #f5c518 20%, #e50914 50%, #f5c518 80%, #ffffff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text; 
+    -webkit-text-fill-color: transparent; 
+    background-clip: text; line-height: 1.1;
+    animation: shine 4s linear infinite; /* Animasi berjalan terus menerus */
 }
+
 .hero-sub { color: #A0A0B5; font-size: 1rem; margin: 0 0 24px; line-height: 1.6; font-weight: 400; }
 
 .movie-card {
@@ -258,7 +285,6 @@ st.markdown("### 🎬 Ceritakan atau Ketik Judul Film yang Kamu Suka:")
 c0, c1, c2, c3, c4 = st.columns([0.8, 1.8, 2.2, 1.7, 1.5])
 with c0: st.markdown("<p style='font-size:0.75rem;color:#A0A0B5; font-weight:600; margin-top:10px;'>🔥 Populer:</p>", unsafe_allow_html=True)
 
-# Mengambil variabel shortcut yang sedang terpilih dari Session State
 sc = st.session_state["shortcut_prompts"]
 
 with c1: st.button(sc[0][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[0][1],))
