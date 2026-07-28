@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import re
 import time
-import random  # <-- TAMBAHAN LIBRARY UNTUK ACAK SHORTCUT
+import random
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.metrics.pairwise import cosine_similarity
@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # ====================================================================
-# BANK DATA SHORTCUT (Bisa kamu tambah/ubah sendiri)
+# BANK DATA SHORTCUT
 # ====================================================================
 POOL_PROMPTS = [
     ("💔 sedih baper romantis", "sedih baper romantis"),
@@ -43,17 +43,17 @@ if "do_search" not in st.session_state:
     st.session_state["do_search"] = False
 if "pil_genre_box" not in st.session_state:
     st.session_state["pil_genre_box"] = "Otomatis (AI)"
-
-# Inisialisasi 3 Shortcut Acak saat web pertama kali dibuka
 if "shortcut_prompts" not in st.session_state:
     st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
 
 def trigger_search():
     st.session_state["do_search"] = True
 
+# DIPERBARUI: Sekarang setelah dipencet, tombol shortcut akan langsung merotasi dirinya sendiri
 def quick_search(query):
     st.session_state["query_input"] = query
     st.session_state["pil_genre_box"] = "Otomatis (AI)" 
+    st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3) # <-- Trik agar roling otomatis
     st.session_state["do_search"] = True
 
 def similar_search(title, current_genre):
@@ -62,7 +62,6 @@ def similar_search(title, current_genre):
         st.session_state["pil_genre_box"] = current_genre
     st.session_state["do_search"] = True
 
-# Fungsi baru: Mengacak ulang tombol dan mencari secara acak
 def surprise_me_action():
     st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
     quick_search("film seru rating tinggi populer")
@@ -265,8 +264,6 @@ sc = st.session_state["shortcut_prompts"]
 with c1: st.button(sc[0][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[0][1],))
 with c2: st.button(sc[1][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[1][1],))
 with c3: st.button(sc[2][0], type="secondary", use_container_width=True, on_click=quick_search, args=(sc[2][1],)) 
-
-# DIPERBARUI: Tombol Surprise Me akan mengacak ulang shortcut di atasnya!
 with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=True, on_click=surprise_me_action) 
 
 col_inp, col_btn = st.columns([5, 1])
