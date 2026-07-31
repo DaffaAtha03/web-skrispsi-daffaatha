@@ -184,11 +184,11 @@ def init_models_and_data():
     df_movies['text']   = df_movies['title'] + ' ' + df_movies['genres']
     df_movies['year']   = pd.to_numeric(df_movies.get('year', pd.Series(dtype=float)), errors='coerce')
 
-    # Identifikasi region tag (Indonesia vs Mixed) berdasarkan kolom source/origin atau deteksi teks
-    if 'source' in df_movies.columns:
-        df_movies['region_tag'] = df_movies['source'].apply(lambda x: 'Indonesia' if str(x).lower() in ['indo', 'indonesia'] else 'Mixed')
+    # Identifikasi region tag berdasarkan kolom language
+    if 'language' in df_movies.columns:
+        df_movies['region_tag'] = df_movies['language'].apply(lambda x: 'Indonesia' if str(x).lower() == 'indo' else 'Mixed')
     else:
-        df_movies['region_tag'] = df_movies['genres'].apply(lambda x: 'Indonesia' if 'indonesia' in str(x).lower() else 'Mixed')
+        df_movies['region_tag'] = 'Mixed'
 
     def _clean(t):
         t = str(t).lower()
@@ -233,7 +233,6 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
     uid, max_n = 8, 8
     predicted_genre = explicit_genre.lower() if explicit_genre != "Otomatis (AI)" else predict_genre_ml(user_input)
     
-    # Menentukan mode region berdasarkan filter manual atau deteksi AI
     if explicit_country == "Hanya Indonesia":
         country_mode = "Indonesia"
     elif explicit_country == "Hanya Internasional (Mixed)":
@@ -241,10 +240,8 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
     else:
         country_mode = detect_country(user_input)
 
-    # Filter berdasarkan genre
     c_movies = df_movies[df_movies['genres'].str.contains(predicted_genre, case=False, na=False)].copy()
 
-    # Filter berdasarkan region / asal negara
     if explicit_country != "Campuran (AI)":
         c_movies = c_movies[c_movies['region_tag'] == country_mode]
 
@@ -274,8 +271,7 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
 
     results_meta = []
     if not c_movies.empty:
-        # Jika mode campuran (AI), ambil kombinasi proporsional (misal: Mixed & Indonesia)
-        if explicit_country == "Campuran (AI)" and not detect_country(user_input) == "Indonesia":
+        if explicit_country == "Campuran (AI)" and country_mode != "Indonesia":
             c_mixed = c_movies[c_movies['region_tag'] == 'Mixed'].sort_values('final_score', ascending=False).head(5)
             c_indo = c_movies[c_movies['region_tag'] == 'Indonesia'].sort_values('final_score', ascending=False).head(3)
             sub_combined = pd.concat([c_mixed, c_indo])
