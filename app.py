@@ -49,7 +49,6 @@ def trigger_search():
     st.session_state["do_search"] = True
 
 def quick_search(query):
-    # MENAMBAHKAN EFEK TOAST (NOTIFIKASI)
     st.toast(f"Mencari film dengan nuansa: {query[:15]}...", icon="🔍")
     st.session_state["query_input"] = query
     st.session_state["pil_genre_box"] = "Otomatis (AI)" 
@@ -57,7 +56,6 @@ def quick_search(query):
     st.session_state["do_search"] = True
 
 def similar_search(title, current_genre):
-    # MENAMBAHKAN EFEK TOAST (NOTIFIKASI)
     st.toast(f"Menganalisis kemiripan dengan {title}...", icon="🤖")
     st.session_state["query_input"] = title
     if current_genre in ["Action", "Comedy", "Drama", "Horror", "Romance"]:
@@ -65,12 +63,10 @@ def similar_search(title, current_genre):
     st.session_state["do_search"] = True
 
 def surprise_me_action():
-    # MENAMBAHKAN ANIMASI BALON DAN TOAST
     st.balloons()
     st.toast("Menyiapkan film kejutan untukmu!", icon="🎲")
     st.session_state["shortcut_prompts"] = random.sample(POOL_PROMPTS, 3)
     
-    # Pilih satu genre acak untuk surprise
     random_surprise = random.choice([
         "film action terbaik sepanjang masa", 
         "film komedi paling lucu", 
@@ -82,7 +78,7 @@ def surprise_me_action():
     st.session_state["do_search"] = True
 
 # ====================================================================
-# CSS — DITAMBAHKAN ANIMASI @keyframes SHINE AGAR JUDUL BERGERAK
+# CSS 
 # ====================================================================
 st.markdown("""
 <style>
@@ -102,20 +98,18 @@ html, body, [data-testid="stAppViewContainer"] {
 .hero-content { position: relative; z-index: 1; }
 .hero-eyebrow { font-size: 0.75rem; font-weight: 800; letter-spacing: 4px; color: #e50914; text-transform: uppercase; margin-bottom: 8px; }
 
-/* --- ANIMASI TEKS BERCAHAYA (SHINING) --- */
 @keyframes shine {
     0% { background-position: 0% center; }
     100% { background-position: 200% center; }
 }
 .hero-title {
     font-size: 3.5rem; font-weight: 800; letter-spacing: -1.5px; margin: 0 0 10px;
-    /* Gradient dibuat berulang agar terlihat mengalir */
     background: linear-gradient(90deg, #ffffff 0%, #f5c518 20%, #e50914 50%, #f5c518 80%, #ffffff 100%);
     background-size: 200% auto;
     -webkit-background-clip: text; 
     -webkit-text-fill-color: transparent; 
     background-clip: text; line-height: 1.1;
-    animation: shine 4s linear infinite; /* Animasi berjalan terus menerus */
+    animation: shine 4s linear infinite;
 }
 
 .hero-sub { color: #A0A0B5; font-size: 1rem; margin: 0 0 24px; line-height: 1.6; font-weight: 400; }
@@ -169,6 +163,31 @@ def init_models_and_data():
     except FileNotFoundError:
         st.error("❌ File data tidak ditemukan!")
         st.stop()
+
+    # ====================================================================
+    # AUTO-FIX: MENAMBAH KOLOM LANGUAGE KE CSV JIKA BELUM ADA
+    # ====================================================================
+    perlu_disimpan = False
+    
+    if 'language' not in movies_indo.columns:
+        # Jika judul film ada kata-kata bahasa Inggris, anggap English, sisanya Indo
+        english_words = ['the', 'of', 'in', 'and', 'a', 'to', 'chapter', 'final', 'out', 'further', 'night', 'strangers', 'insidious', 'part']
+        def detect_lang(title):
+            words = str(title).lower().split()
+            return 'English' if any(w in english_words for w in words) else 'Indo'
+        
+        movies_indo['language'] = movies_indo['title'].apply(detect_lang)
+        movies_indo.to_csv("movies_indo_clean.csv", index=False) # Simpan permanen ke CSV
+        perlu_disimpan = True
+
+    if 'language' not in df_imdb.columns:
+        df_imdb['language'] = 'English'
+        df_imdb.to_csv("df_imdb_clean.csv", index=False) # Simpan permanen ke CSV
+        perlu_disimpan = True
+        
+    if perlu_disimpan:
+        st.toast("✅ Dataset berhasil diperbarui otomatis!", icon="🛠️")
+    # ====================================================================
 
     if 'genre' in movies_indo.columns: movies_indo = movies_indo.rename(columns={'genre': 'genres'})
     movies_indo['content'] = movies_indo['genres'].fillna('')
@@ -242,6 +261,7 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
     c_indo['final_score'] = c_indo['semantic_score']
 
     results_meta = []
+    # SEKARANG STRICT, TIDAK ADA FALLBACK LANGUAGE SAMA SEKALI
     if country_mode == "Indonesia" and not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year',''), 'language': r['language']} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
     elif country_mode == "Global" and not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year',''), 'language': r['language']} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
     else:
@@ -349,7 +369,7 @@ if st.session_state["do_search"]:
                         
                         g_short = genres[:20] + ("…" if len(genres) > 20 else "")
                         
-                        # Langsung ambil bahasa dari item tanpa fallback
+                        # LANGSUNG AMBIL BAHASA DARI ITEM TANPA FALLBACK
                         lang_val = item['language']
                         
                         # Atur warna berdasarkan source
