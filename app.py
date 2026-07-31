@@ -164,39 +164,36 @@ html, body, [data-testid="stAppViewContainer"] {
 """, unsafe_allow_html=True)
 
 # ====================================================================
-# INISIALISASI MODEL & DATA
+# INISIALISASI MODEL & DATA (DISESUAIKAN DENGAN 3 FILE UTAMA)
 # ====================================================================
 @st.cache_resource(show_spinner="Memuat Model AI BERT & Dataset...")
 def init_models_and_data():
     try:
         pred_matrix = pd.read_parquet("pred_matrix_saved.parquet")
-        movies_indo = pd.read_csv("movies_indo_clean.csv")
-        df_imdb     = pd.read_csv("df_imdb_clean.csv")
-        movies_ml   = pd.read_csv("movies_ml_clean.csv")
+        df_movies   = pd.read_csv("all_movies_combined.csv")
         ratings     = pd.read_csv("ratings_clean.csv")
     except FileNotFoundError as e:
-        st.error(f"❌ File data tidak ditemukan: {e}. Pastikan file CSV dan Parquet sudah berada di direktori yang sama dengan app.py!")
+        st.error(f"❌ File data tidak ditemukan: {e}. Pastikan file dataset sudah lengkap di direktori app.py!")
         st.stop()
 
-    if 'genre' in movies_indo.columns: 
-        movies_indo = movies_indo.rename(columns={'genre': 'genres'})
-    movies_indo['content'] = movies_indo['genres'].fillna('')
-    movies_indo['year']    = pd.to_numeric(movies_indo.get('year', pd.Series(dtype=float)), errors='coerce')
-
-    df_imdb['text']   = df_imdb['title'].fillna('') + ' ' + df_imdb['genres'].fillna('')
-    df_imdb['genres'] = df_imdb['genres'].fillna('').str.lower()
-    df_imdb['year']   = pd.to_numeric(df_imdb.get('year', pd.Series(dtype=float)), errors='coerce')
+    if 'genres' not in df_movies.columns and 'genre' in df_movies.columns:
+        df_movies = df_movies.rename(columns={'genre': 'genres'})
+    
+    df_movies['genres'] = df_movies['genres'].fillna('').str.lower()
+    df_movies['title']  = df_movies['title'].fillna('Unknown')
+    df_movies['text']   = df_movies['title'] + ' ' + df_movies['genres']
+    df_movies['year']   = pd.to_numeric(df_movies.get('year', pd.Series(dtype=float)), errors='coerce')
 
     def _clean(t):
         t = str(t).lower()
         t = re.sub(r'\(\d{4}\)', '', t)
         return re.sub(r'[^a-z0-9\s]', '', t).strip()
-    movies_ml['clean_title'] = movies_ml['title'].apply(_clean)
+    df_movies['clean_title'] = df_movies['title'].apply(_clean)
 
     train_data = [
-        ("film sedih banget","Drama"), ("film yang bikin nangis","Drama"), ("film romantis","Romance"), ("film cinta sejati","Romance"),
-        ("film lucu banget","Comedy"), ("film komedi seru","Comedy"), ("film horor serem","Horror"), ("film hantu","Horror"),
-        ("film aksi","Action"), ("film action seru","Action"),
+        ("film sedih banget","drama"), ("film yang bikin nangis","drama"), ("film romantis","romance"), ("film cinta sejati","romance"),
+        ("film lucu banget","comedy"), ("film komedi seru","comedy"), ("film horor serem","horror"), ("film hantu","horror"),
+        ("film aksi","action"), ("film action seru","action"),
     ]
     texts, labels = [x[0] for x in train_data], [x[1] for x in train_data]
     vectorizer_nlp = TfidfVectorizer()
@@ -204,21 +201,17 @@ def init_models_and_data():
     model_nlp.fit(vectorizer_nlp.fit_transform(texts), labels)
 
     bert_model = SentenceTransformer('all-MiniLM-L6-v2')
-    g_vecs = bert_model.encode(df_imdb['text'].tolist())
-    i_vecs = bert_model.encode(movies_indo['content'].tolist())
+    movie_vecs = bert_model.encode(df_movies['text'].tolist(), show_progress_bar=False)
 
-    return pred_matrix, movies_indo, df_imdb, movies_ml, ratings, vectorizer_nlp, model_nlp, bert_model, g_vecs, i_vecs
+    return pred_matrix, df_movies, ratings, vectorizer_nlp, model_nlp, bert_model, movie_vecs
 
-(pred_matrix, movies_indo, df_imdb, movies_ml, ratings, vectorizer_nlp, model_nlp, bert_model, g_vecs, i_vecs) = init_models_and_data()
+(pred_matrix, df_movies, ratings, vectorizer_nlp, model_nlp, bert_model, movie_vecs) = init_models_and_data()
 
 def clean_title(title): 
     return re.sub(r'[^a-z0-9\s]', '', re.sub(r'\(\d{4}\)', '', str(title).lower())).strip()
 
 def predict_genre_ml(text): 
-    return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "Drama"
-
-def detect_country(text): 
-    return "Indonesia" if ("indonesia" in text.lower() or "indo" in text.lower()) else "Mixed"
+    return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "drama"
 
 def detect_year(text): 
     m = re.search(r'(19\d{2}|20\d{2})', text)
@@ -227,59 +220,54 @@ def detect_year(text):
 # ====================================================================
 # FUNGSI REKOMENDASI HIBRIDA
 # ====================================================================
-def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_tahun, explicit_country):
+def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_tahun):
     uid, max_n = 8, 8
-    predicted_genre = explicit_genre if explicit_genre != "Otomatis (AI)" else predict_genre_ml(user_input)
-    country_mode = "Indonesia" if explicit_country == "Hanya Indonesia" else ("Global" if explicit_country == "Hanya Internasional" else detect_country(user_input))
+    predicted_genre = explicit_genre.lower() if explicit_genre != "Otomatis (AI)" else predict_genre_ml(user_input)
 
-    c_indo = movies_indo[movies_indo['genres'].str.contains(predicted_genre, case=False, na=False)].copy()
-    c_global = df_imdb[df_imdb['genres'].str.contains(predicted_genre.lower(), na=False)].copy()
+    c_movies = df_movies[df_movies['genres'].str.contains(predicted_genre, case=False, na=False)].copy()
 
     if is_year_filtered:
         start_year, end_year = rentang_tahun
-        c_indo = c_indo[(c_indo['year'] >= start_year) & (c_indo['year'] <= end_year)]
-        c_global = c_global[(c_global['year'] >= start_year) & (c_global['year'] <= end_year)]
+        c_movies = c_movies[(c_movies['year'] >= start_year) & (c_movies['year'] <= end_year)]
         year_info = f"{start_year} - {end_year}"
     else:
         target_year = detect_year(user_input)
         if target_year:
-            c_indo, c_global, year_info = c_indo[c_indo['year'] == target_year], c_global[c_global['year'] == target_year], str(target_year)
+            c_movies, year_info = c_movies[c_movies['year'] == target_year], str(target_year)
         else: 
             year_info = "Semua Waktu"
 
     qv = bert_model.encode([user_input if user_input else predicted_genre])
-    c_global['semantic_score'] = cosine_similarity(qv, g_vecs[c_global.index.tolist()])[0] if not c_global.empty else 0.0
-    c_indo['semantic_score'] = cosine_similarity(qv, i_vecs[c_indo.index.tolist()])[0] if not c_indo.empty else 0.0
+    c_movies['semantic_score'] = cosine_similarity(qv, movie_vecs[c_movies.index.tolist()])[0] if not c_movies.empty else 0.0
 
     if uid in pred_matrix.index:
         up = pred_matrix.loc[uid]
-        ml2 = movies_ml[movies_ml['movieId'].isin(up.index)].copy()
-        ml2['svd_rating'] = ml2['movieId'].map(up)
-        svd_lkp = pd.Series(ml2['svd_rating'].values, index=ml2['clean_title']).to_dict()
-        c_global['svd_score'] = c_global['title'].apply(clean_title).map(svd_lkp).fillna(ratings['rating'].mean()) / 5.0
+        c_movies['svd_rating'] = c_movies['movieId'].map(up) if 'movieId' in c_movies.columns else np.nan
+        mean_rating = ratings['rating'].mean() if 'rating' in ratings.columns else 3.0
+        c_movies['svd_score'] = c_movies['svd_rating'].fillna(mean_rating) / 5.0
     else: 
-        c_global['svd_score'] = 0.5
+        c_movies['svd_score'] = 0.5
 
-    c_global['final_score'] = 0.5 * c_global['semantic_score'] + 0.5 * c_global['svd_score']
-    c_indo['final_score'] = c_indo['semantic_score']
+    c_movies['final_score'] = 0.5 * c_movies['semantic_score'] + 0.5 * c_movies['svd_score']
 
     results_meta = []
-    if country_mode == "Indonesia" and not c_indo.empty: 
-        results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
-    elif country_mode == "Global" and not c_global.empty: 
-        results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
-    else:
-        if not c_global.empty: 
-            results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(5).iterrows()])
-        if not c_indo.empty: 
-            results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(3).iterrows()])
+    if not c_movies.empty:
+        results_meta.extend([{
+            'title': r['title'], 
+            'genres': r.get('genres',''), 
+            'source': 'dataset', 
+            'score': float(r['final_score']), 
+            'sem_s': float(r['semantic_score']), 
+            'svd_s': float(r['svd_score']), 
+            'year': r.get('year','')
+        } for _, r in c_movies.sort_values('final_score', ascending=False).head(max_n).iterrows()])
 
     seen, deduped = set(), []
     for m in results_meta:
         if m['title'] not in seen: 
             seen.add(m['title'])
             deduped.append(m)
-    return deduped, predicted_genre, country_mode, year_info
+    return deduped, predicted_genre.title(), year_info
 
 # ====================================================================
 # TAMPILAN UTAMA APLIKASI
@@ -307,7 +295,7 @@ with st.expander("💡 Bingung cara pakainya? Klik di sini untuk panduan lengkap
             <li style="margin-bottom: 10px;">🤖 <b>Cari Berdasarkan Nuansa (Natural Language):</b><br>
             Ceritakan saja suasana yang ingin kamu tonton. Misal: <i>"film sedih yang bikin nangis"</i>, <i>"komedi gokil"</i>, atau <i>"action seru tahun 2019"</i>.</li>
             <li>🎛️ <b>Gunakan Filter Spesifik (Manual):</b><br>
-            Buka menu <b>"Filter Spesifik"</b> di bawah kolom pencarian. Kamu bisa mengunci Genre, memilih Asal Negara, atau menggeser <b>Rentang Tahun</b> secara pasti tanpa tebakan AI.</li>
+            Buka menu <b>"Filter Spesifik"</b> di bawah kolom pencarian. Kamu bisa mengunci Genre atau menggeser <b>Rentang Tahun</b> secara pasti tanpa tebakan AI.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -326,19 +314,17 @@ with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=Tr
 
 col_inp, col_btn = st.columns([5, 1])
 with col_inp: 
-    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
+    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action 2019)...", label_visibility="collapsed", on_change=trigger_search)
 with col_btn: 
     st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
-    f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
+    f_col1, f_col2 = st.columns([1, 1.3])
     with f_col1: 
         pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
     with f_col2: 
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
         pil_rentang_tahun = st.slider("Geser Rentang Tahun Rilis", min_value=1970, max_value=2026, value=(2012, 2021), disabled=not filter_tahun_aktif)
-    with f_col3: 
-        pil_negara = st.selectbox("Asal Negara", ["Campuran (AI)", "Hanya Indonesia", "Hanya Internasional"])
     
     st.markdown("<hr style='margin: 10px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
     st.button("🎯 Terapkan Filter & Cari Film", type="primary", use_container_width=True, on_click=trigger_search, key="btn_filter_search")
@@ -354,7 +340,7 @@ if st.session_state["do_search"]:
             st.write("🔍 Mengekstrak niat pencarian atau judul film..."); time.sleep(0.3)
             st.write("🧠 Mencocokkan kemiripan vektor semantik (Sentence-BERT)..."); time.sleep(0.3)
             st.write("📊 Membandingkan pola laten rating (SVD Matrix)..."); time.sleep(0.3)
-            hasil_film, gen, count_mode, yr_info = recommend_system_web(user_query, pil_genre, filter_tahun_aktif, pil_rentang_tahun, pil_negara)
+            hasil_film, gen, yr_info = recommend_system_web(user_query, pil_genre, filter_tahun_aktif, pil_rentang_tahun)
             status.update(label="Rekomendasi Ditemukan!", state="complete", expanded=False)
 
         genre_emoji = {"Drama":"💔","Horror":"👻","Action":"💥","Comedy":"😂","Romance":"❤️"}.get(gen,"🎬")
@@ -362,7 +348,6 @@ if st.session_state["do_search"]:
         st.markdown(f"""
         <div class="analysis-box">
             <div class="ai-item"><div class="ai-label">Konteks Terdeteksi</div><div class="ai-value"><span>{genre_emoji}</span> {gen}</div></div>
-            <div class="ai-item"><div class="ai-label">Mode Asal</div><div class="ai-value"><span>{"🇮🇩" if count_mode == "Indonesia" else "🌍"}</span> {count_mode}</div></div>
             <div class="ai-item"><div class="ai-label">Tahun Rilis</div><div class="ai-value"><span>📅</span> {yr_info}</div></div>
             <div class="ai-item"><div class="ai-label">Total Ditemukan</div><div class="ai-value"><span>🔍</span> {len(hasil_film)} Film</div></div>
         </div>
@@ -381,11 +366,10 @@ if st.session_state["do_search"]:
                 for j in range(4):
                     if i + j < len(hasil_film):
                         item = hasil_film[i + j]
-                        title, genres, src = item['title'], str(item.get('genres', gen)).title(), item.get('source', 'imdb')
+                        title, genres = item['title'], str(item.get('genres', gen)).title()
                         score, y_val = float(item.get('score', 0.5)), item.get('year', '')
                         
                         g_short = genres[:20] + ("…" if len(genres) > 20 else "")
-                        src_lbl, src_bg, src_col = ("IMDb", "rgba(69,182,254,0.15)", "#45b6fe") if src == "imdb" else ("Indo", "rgba(52,211,153,0.15)", "#34d399")
                         pct, yr_str = min(int(score * 100), 100), f" • {int(float(y_val))}" if y_val else ""
 
                         with cols[j]:
@@ -396,7 +380,7 @@ if st.session_state["do_search"]:
                                     <p class="card-title">{title}</p>
                                     <div class="card-tags">
                                         <span class="card-tag" style="background:rgba(255,255,255,0.1); color:#fff;">{g_short}</span>
-                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{src_lbl}{yr_str}</span>
+                                        <span class="card-tag" style="background:rgba(52,211,153,0.15); color:#34d399;">Dataset{yr_str}</span>
                                     </div>
                                     <div class="score-bar-wrap">
                                         <div class="score-bar-label">Akurasi AI <span>{pct}%</span></div>
@@ -426,12 +410,12 @@ if st.session_state["do_search"]:
         col_s1, col_s2 = st.columns(2)
         with col_s1:
             st.write("**Top Distribusi Genre dalam Database**")
-            g_counts = df_imdb['genres'].value_counts().head(7).reset_index(); g_counts.columns = ['Genre', 'Jumlah']
+            g_counts = df_movies['genres'].value_counts().head(7).reset_index(); g_counts.columns = ['Genre', 'Jumlah']
             fig_p = px.pie(g_counts, values='Jumlah', names='Genre', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig_p, use_container_width=True, key="pie_gen")
         with col_s2:
             st.write("**Sebaran Rilis Film Berdasarkan Tahun**")
-            y_counts = df_imdb['year'].dropna().value_counts().reset_index(); y_counts.columns = ['Tahun', 'Jumlah']
+            y_counts = df_movies['year'].dropna().value_counts().reset_index(); y_counts.columns = ['Tahun', 'Jumlah']
             fig_b = px.bar(y_counts, x='Tahun', y='Jumlah', color='Jumlah')
             st.plotly_chart(fig_b, use_container_width=True, key="bar_year")
 
