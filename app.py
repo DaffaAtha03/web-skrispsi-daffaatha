@@ -242,11 +242,11 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
     c_indo['final_score'] = c_indo['semantic_score']
 
     results_meta = []
-    if country_mode == "Indonesia" and not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
-    elif country_mode == "Global" and not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
+    if country_mode == "Indonesia" and not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year',''), 'language': r['language']} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
+    elif country_mode == "Global" and not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year',''), 'language': r['language']} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
     else:
-        if not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(5).iterrows()])
-        if not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(3).iterrows()])
+        if not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year',''), 'language': r['language']} for _, r in c_global.sort_values('final_score', ascending=False).head(5).iterrows()])
+        if not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year',''), 'language': r['language']} for _, r in c_indo.sort_values('final_score', ascending=False).head(3).iterrows()])
 
     seen, deduped = set(), []
     for m in results_meta:
@@ -348,7 +348,13 @@ if st.session_state["do_search"]:
                         score, y_val = float(item.get('score', 0.5)), item.get('year', '')
                         
                         g_short = genres[:20] + ("…" if len(genres) > 20 else "")
-                        src_lbl, src_bg, src_col = ("IMDb", "rgba(69,182,254,0.15)", "#45b6fe") if src == "imdb" else ("Indo", "rgba(52,211,153,0.15)", "#34d399")
+                        
+                        # Langsung ambil bahasa dari item tanpa fallback
+                        lang_val = item['language']
+                        
+                        # Atur warna berdasarkan source
+                        src_bg, src_col = ("rgba(69,182,254,0.15)", "#45b6fe") if src == "imdb" else ("rgba(52,211,153,0.15)", "#34d399")
+                        
                         pct, yr_str = min(int(score * 100), 100), f" • {int(float(y_val))}" if y_val else ""
 
                         with cols[j]:
@@ -359,7 +365,7 @@ if st.session_state["do_search"]:
                                     <p class="card-title">{title}</p>
                                     <div class="card-tags">
                                         <span class="card-tag" style="background:rgba(255,255,255,0.1); color:#fff;">{g_short}</span>
-                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{src_lbl}{yr_str}</span>
+                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{lang_val}{yr_str}</span>
                                     </div>
                                     <div class="score-bar-wrap">
                                         <div class="score-bar-label">Akurasi AI <span>{pct}%</span></div>
