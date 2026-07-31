@@ -164,7 +164,7 @@ html, body, [data-testid="stAppViewContainer"] {
 """, unsafe_allow_html=True)
 
 # ====================================================================
-# INISIALISASI MODEL & DATA (DISESUAIKAN DENGAN 3 FILE UTAMA)
+# INISIALISASI MODEL & DATA
 # ====================================================================
 @st.cache_resource(show_spinner="Memuat Model AI BERT & Dataset...")
 def init_models_and_data():
@@ -183,6 +183,12 @@ def init_models_and_data():
     df_movies['title']  = df_movies['title'].fillna('Unknown')
     df_movies['text']   = df_movies['title'] + ' ' + df_movies['genres']
     df_movies['year']   = pd.to_numeric(df_movies.get('year', pd.Series(dtype=float)), errors='coerce')
+
+    # Identifikasi region tag (Indonesia vs Mixed) berdasarkan kolom source/origin atau deteksi teks
+    if 'source' in df_movies.columns:
+        df_movies['region_tag'] = df_movies['source'].apply(lambda x: 'Indonesia' if str(x).lower() in ['indo', 'indonesia'] else 'Mixed')
+    else:
+        df_movies['region_tag'] = df_movies['genres'].apply(lambda x: 'Indonesia' if 'indonesia' in str(x).lower() else 'Mixed')
 
     def _clean(t):
         t = str(t).lower()
@@ -213,6 +219,9 @@ def clean_title(title):
 def predict_genre_ml(text): 
     return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "drama"
 
+def detect_country(text): 
+    return "Indonesia" if ("indonesia" in text.lower() or "indo" in text.lower()) else "Mixed"
+
 def detect_year(text): 
     m = re.search(r'(19\d{2}|20\d{2})', text)
     return int(m.group()) if m else None
@@ -220,11 +229,24 @@ def detect_year(text):
 # ====================================================================
 # FUNGSI REKOMENDASI HIBRIDA
 # ====================================================================
-def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_tahun):
+def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_tahun, explicit_country):
     uid, max_n = 8, 8
     predicted_genre = explicit_genre.lower() if explicit_genre != "Otomatis (AI)" else predict_genre_ml(user_input)
+    
+    # Menentukan mode region berdasarkan filter manual atau deteksi AI
+    if explicit_country == "Hanya Indonesia":
+        country_mode = "Indonesia"
+    elif explicit_country == "Hanya Internasional (Mixed)":
+        country_mode = "Mixed"
+    else:
+        country_mode = detect_country(user_input)
 
+    # Filter berdasarkan genre
     c_movies = df_movies[df_movies['genres'].str.contains(predicted_genre, case=False, na=False)].copy()
+
+    # Filter berdasarkan region / asal negara
+    if explicit_country != "Campuran (AI)":
+        c_movies = c_movies[c_movies['region_tag'] == country_mode]
 
     if is_year_filtered:
         start_year, end_year = rentang_tahun
@@ -252,22 +274,30 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
 
     results_meta = []
     if not c_movies.empty:
+        # Jika mode campuran (AI), ambil kombinasi proporsional (misal: Mixed & Indonesia)
+        if explicit_country == "Campuran (AI)" and not detect_country(user_input) == "Indonesia":
+            c_mixed = c_movies[c_movies['region_tag'] == 'Mixed'].sort_values('final_score', ascending=False).head(5)
+            c_indo = c_movies[c_movies['region_tag'] == 'Indonesia'].sort_values('final_score', ascending=False).head(3)
+            sub_combined = pd.concat([c_mixed, c_indo])
+        else:
+            sub_combined = c_movies.sort_values('final_score', ascending=False).head(max_n)
+
         results_meta.extend([{
             'title': r['title'], 
             'genres': r.get('genres',''), 
-            'source': 'dataset', 
+            'source': r.get('region_tag', 'Mixed'), 
             'score': float(r['final_score']), 
             'sem_s': float(r['semantic_score']), 
             'svd_s': float(r['svd_score']), 
             'year': r.get('year','')
-        } for _, r in c_movies.sort_values('final_score', ascending=False).head(max_n).iterrows()])
+        } for _, r in sub_combined.iterrows()])
 
     seen, deduped = set(), []
     for m in results_meta:
         if m['title'] not in seen: 
             seen.add(m['title'])
             deduped.append(m)
-    return deduped, predicted_genre.title(), year_info
+    return deduped, predicted_genre.title(), country_mode, year_info
 
 # ====================================================================
 # TAMPILAN UTAMA APLIKASI
@@ -295,7 +325,7 @@ with st.expander("💡 Bingung cara pakainya? Klik di sini untuk panduan lengkap
             <li style="margin-bottom: 10px;">🤖 <b>Cari Berdasarkan Nuansa (Natural Language):</b><br>
             Ceritakan saja suasana yang ingin kamu tonton. Misal: <i>"film sedih yang bikin nangis"</i>, <i>"komedi gokil"</i>, atau <i>"action seru tahun 2019"</i>.</li>
             <li>🎛️ <b>Gunakan Filter Spesifik (Manual):</b><br>
-            Buka menu <b>"Filter Spesifik"</b> di bawah kolom pencarian. Kamu bisa mengunci Genre atau menggeser <b>Rentang Tahun</b> secara pasti tanpa tebakan AI.</li>
+            Buka menu <b>"Filter Spesifik"</b> di bawah kolom pencarian. Kamu bisa mengunci Genre, memilih Asal Negara (Mixed / Indonesia), atau menggeser <b>Rentang Tahun</b> secara pasti tanpa tebakan AI.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -314,17 +344,19 @@ with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=Tr
 
 col_inp, col_btn = st.columns([5, 1])
 with col_inp: 
-    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action 2019)...", label_visibility="collapsed", on_change=trigger_search)
+    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
 with col_btn: 
     st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
-    f_col1, f_col2 = st.columns([1, 1.3])
+    f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
     with f_col1: 
         pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
     with f_col2: 
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
         pil_rentang_tahun = st.slider("Geser Rentang Tahun Rilis", min_value=1970, max_value=2026, value=(2012, 2021), disabled=not filter_tahun_aktif)
+    with f_col3: 
+        pil_negara = st.selectbox("Asal Negara", ["Campuran (AI)", "Hanya Indonesia", "Hanya Internasional (Mixed)"])
     
     st.markdown("<hr style='margin: 10px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
     st.button("🎯 Terapkan Filter & Cari Film", type="primary", use_container_width=True, on_click=trigger_search, key="btn_filter_search")
@@ -340,7 +372,7 @@ if st.session_state["do_search"]:
             st.write("🔍 Mengekstrak niat pencarian atau judul film..."); time.sleep(0.3)
             st.write("🧠 Mencocokkan kemiripan vektor semantik (Sentence-BERT)..."); time.sleep(0.3)
             st.write("📊 Membandingkan pola laten rating (SVD Matrix)..."); time.sleep(0.3)
-            hasil_film, gen, yr_info = recommend_system_web(user_query, pil_genre, filter_tahun_aktif, pil_rentang_tahun)
+            hasil_film, gen, count_mode, yr_info = recommend_system_web(user_query, pil_genre, filter_tahun_aktif, pil_rentang_tahun, pil_negara)
             status.update(label="Rekomendasi Ditemukan!", state="complete", expanded=False)
 
         genre_emoji = {"Drama":"💔","Horror":"👻","Action":"💥","Comedy":"😂","Romance":"❤️"}.get(gen,"🎬")
@@ -348,6 +380,7 @@ if st.session_state["do_search"]:
         st.markdown(f"""
         <div class="analysis-box">
             <div class="ai-item"><div class="ai-label">Konteks Terdeteksi</div><div class="ai-value"><span>{genre_emoji}</span> {gen}</div></div>
+            <div class="ai-item"><div class="ai-label">Mode Asal</div><div class="ai-value"><span>{"🇮🇩" if count_mode == "Indonesia" else "🌍"}</span> {count_mode}</div></div>
             <div class="ai-item"><div class="ai-label">Tahun Rilis</div><div class="ai-value"><span>📅</span> {yr_info}</div></div>
             <div class="ai-item"><div class="ai-label">Total Ditemukan</div><div class="ai-value"><span>🔍</span> {len(hasil_film)} Film</div></div>
         </div>
@@ -366,10 +399,16 @@ if st.session_state["do_search"]:
                 for j in range(4):
                     if i + j < len(hasil_film):
                         item = hasil_film[i + j]
-                        title, genres = item['title'], str(item.get('genres', gen)).title()
+                        title, genres, src = item['title'], str(item.get('genres', gen)).title(), item.get('source', 'Mixed')
                         score, y_val = float(item.get('score', 0.5)), item.get('year', '')
                         
                         g_short = genres[:20] + ("…" if len(genres) > 20 else "")
+                        # Label & Warna Badge Region
+                        if src.lower() == "indonesia":
+                            src_lbl, src_bg, src_col = ("Indonesia", "rgba(52,211,153,0.15)", "#34d399")
+                        else:
+                            src_lbl, src_bg, src_col = ("Mixed", "rgba(69,182,254,0.15)", "#45b6fe")
+
                         pct, yr_str = min(int(score * 100), 100), f" • {int(float(y_val))}" if y_val else ""
 
                         with cols[j]:
@@ -380,7 +419,7 @@ if st.session_state["do_search"]:
                                     <p class="card-title">{title}</p>
                                     <div class="card-tags">
                                         <span class="card-tag" style="background:rgba(255,255,255,0.1); color:#fff;">{g_short}</span>
-                                        <span class="card-tag" style="background:rgba(52,211,153,0.15); color:#34d399;">Dataset{yr_str}</span>
+                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{src_lbl}{yr_str}</span>
                                     </div>
                                     <div class="score-bar-wrap">
                                         <div class="score-bar-label">Akurasi AI <span>{pct}%</span></div>
