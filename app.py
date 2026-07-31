@@ -78,7 +78,7 @@ def surprise_me_action():
     st.session_state["do_search"] = True
 
 # ====================================================================
-# CSS 
+# CSS STYLING
 # ====================================================================
 st.markdown("""
 <style>
@@ -113,6 +113,17 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 
 .hero-sub { color: #A0A0B5; font-size: 1rem; margin: 0 0 24px; line-height: 1.6; font-weight: 400; }
+
+.badge-container { display: flex; gap: 10px; flex-wrap: wrap; }
+.badge { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); padding: 6px 14px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; color: #fff; }
+
+.analysis-box {
+    display: flex; gap: 20px; background: rgba(20,20,35,0.6); border: 1px solid rgba(255,255,255,0.08);
+    padding: 15px 25px; border-radius: 14px; margin-bottom: 25px; align-items: center; justify-content: space-between;
+}
+.ai-item { display: flex; flex-direction: column; gap: 4px; }
+.ai-label { font-size: 0.7rem; color: #8888AA; text-transform: uppercase; font-weight: 700; letter-spacing: 1px; }
+.ai-value { font-size: 0.95rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
 
 .movie-card {
     background: linear-gradient(180deg, rgba(20,20,40,0.8) 0%, rgba(10,10,25,0.9) 100%);
@@ -152,6 +163,9 @@ html, body, [data-testid="stAppViewContainer"] {
 </style>
 """, unsafe_allow_html=True)
 
+# ====================================================================
+# INISIALISASI MODEL & DATA
+# ====================================================================
 @st.cache_resource(show_spinner="Memuat Model AI BERT & Dataset...")
 def init_models_and_data():
     try:
@@ -160,36 +174,12 @@ def init_models_and_data():
         df_imdb     = pd.read_csv("df_imdb_clean.csv")
         movies_ml   = pd.read_csv("movies_ml_clean.csv")
         ratings     = pd.read_csv("ratings_clean.csv")
-    except FileNotFoundError:
-        st.error("❌ File data tidak ditemukan!")
+    except FileNotFoundError as e:
+        st.error(f"❌ File data tidak ditemukan: {e}. Pastikan file CSV dan Parquet sudah berada di direktori yang sama dengan app.py!")
         st.stop()
 
-    # ====================================================================
-    # AUTO-FIX: MENAMBAH KOLOM LANGUAGE KE CSV JIKA BELUM ADA
-    # ====================================================================
-    perlu_disimpan = False
-    
-    if 'language' not in movies_indo.columns:
-        # Jika judul film ada kata-kata bahasa Inggris, anggap English, sisanya Indo
-        english_words = ['the', 'of', 'in', 'and', 'a', 'to', 'chapter', 'final', 'out', 'further', 'night', 'strangers', 'insidious', 'part']
-        def detect_lang(title):
-            words = str(title).lower().split()
-            return 'English' if any(w in english_words for w in words) else 'Indo'
-        
-        movies_indo['language'] = movies_indo['title'].apply(detect_lang)
-        movies_indo.to_csv("movies_indo_clean.csv", index=False) # Simpan permanen ke CSV
-        perlu_disimpan = True
-
-    if 'language' not in df_imdb.columns:
-        df_imdb['language'] = 'English'
-        df_imdb.to_csv("df_imdb_clean.csv", index=False) # Simpan permanen ke CSV
-        perlu_disimpan = True
-        
-    if perlu_disimpan:
-        st.toast("✅ Dataset berhasil diperbarui otomatis!", icon="🛠️")
-    # ====================================================================
-
-    if 'genre' in movies_indo.columns: movies_indo = movies_indo.rename(columns={'genre': 'genres'})
+    if 'genre' in movies_indo.columns: 
+        movies_indo = movies_indo.rename(columns={'genre': 'genres'})
     movies_indo['content'] = movies_indo['genres'].fillna('')
     movies_indo['year']    = pd.to_numeric(movies_indo.get('year', pd.Series(dtype=float)), errors='coerce')
 
@@ -221,11 +211,22 @@ def init_models_and_data():
 
 (pred_matrix, movies_indo, df_imdb, movies_ml, ratings, vectorizer_nlp, model_nlp, bert_model, g_vecs, i_vecs) = init_models_and_data()
 
-def clean_title(title): return re.sub(r'[^a-z0-9\s]', '', re.sub(r'\(\d{4}\)', '', str(title).lower())).strip()
-def predict_genre_ml(text): return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "Drama"
-def detect_country(text): return "Indonesia" if ("indonesia" in text.lower() or "indo" in text.lower()) else "Mixed"
-def detect_year(text): m = re.search(r'(19\d{2}|20\d{2})', text); return int(m.group()) if m else None
+def clean_title(title): 
+    return re.sub(r'[^a-z0-9\s]', '', re.sub(r'\(\d{4}\)', '', str(title).lower())).strip()
 
+def predict_genre_ml(text): 
+    return model_nlp.predict(vectorizer_nlp.transform([text]))[0] if text.strip() else "Drama"
+
+def detect_country(text): 
+    return "Indonesia" if ("indonesia" in text.lower() or "indo" in text.lower()) else "Mixed"
+
+def detect_year(text): 
+    m = re.search(r'(19\d{2}|20\d{2})', text)
+    return int(m.group()) if m else None
+
+# ====================================================================
+# FUNGSI REKOMENDASI HIBRIDA
+# ====================================================================
 def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_tahun, explicit_country):
     uid, max_n = 8, 8
     predicted_genre = explicit_genre if explicit_genre != "Otomatis (AI)" else predict_genre_ml(user_input)
@@ -243,7 +244,8 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
         target_year = detect_year(user_input)
         if target_year:
             c_indo, c_global, year_info = c_indo[c_indo['year'] == target_year], c_global[c_global['year'] == target_year], str(target_year)
-        else: year_info = "Semua Waktu"
+        else: 
+            year_info = "Semua Waktu"
 
     qv = bert_model.encode([user_input if user_input else predicted_genre])
     c_global['semantic_score'] = cosine_similarity(qv, g_vecs[c_global.index.tolist()])[0] if not c_global.empty else 0.0
@@ -255,24 +257,33 @@ def recommend_system_web(user_input, explicit_genre, is_year_filtered, rentang_t
         ml2['svd_rating'] = ml2['movieId'].map(up)
         svd_lkp = pd.Series(ml2['svd_rating'].values, index=ml2['clean_title']).to_dict()
         c_global['svd_score'] = c_global['title'].apply(clean_title).map(svd_lkp).fillna(ratings['rating'].mean()) / 5.0
-    else: c_global['svd_score'] = 0.5
+    else: 
+        c_global['svd_score'] = 0.5
 
     c_global['final_score'] = 0.5 * c_global['semantic_score'] + 0.5 * c_global['svd_score']
     c_indo['final_score'] = c_indo['semantic_score']
 
     results_meta = []
-    # SEKARANG STRICT, TIDAK ADA FALLBACK LANGUAGE SAMA SEKALI
-    if country_mode == "Indonesia" and not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year',''), 'language': r['language']} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
-    elif country_mode == "Global" and not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year',''), 'language': r['language']} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
+    if country_mode == "Indonesia" and not c_indo.empty: 
+        results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(max_n).iterrows()])
+    elif country_mode == "Global" and not c_global.empty: 
+        results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(max_n).iterrows()])
     else:
-        if not c_global.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year',''), 'language': r['language']} for _, r in c_global.sort_values('final_score', ascending=False).head(5).iterrows()])
-        if not c_indo.empty: results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year',''), 'language': r['language']} for _, r in c_indo.sort_values('final_score', ascending=False).head(3).iterrows()])
+        if not c_global.empty: 
+            results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'imdb', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': float(r['svd_score']), 'year': r.get('year','')} for _, r in c_global.sort_values('final_score', ascending=False).head(5).iterrows()])
+        if not c_indo.empty: 
+            results_meta.extend([{'title': r['title'], 'genres': r.get('genres',''), 'source': 'indo', 'score': float(r['final_score']), 'sem_s': float(r['semantic_score']), 'svd_s': 0.8, 'year': r.get('year','')} for _, r in c_indo.sort_values('final_score', ascending=False).head(3).iterrows()])
 
     seen, deduped = set(), []
     for m in results_meta:
-        if m['title'] not in seen: seen.add(m['title']); deduped.append(m)
+        if m['title'] not in seen: 
+            seen.add(m['title'])
+            deduped.append(m)
     return deduped, predicted_genre, country_mode, year_info
 
+# ====================================================================
+# TAMPILAN UTAMA APLIKASI
+# ====================================================================
 st.markdown(f"""
 <div class="hero">
     <div class="hero-content">
@@ -303,7 +314,8 @@ with st.expander("💡 Bingung cara pakainya? Klik di sini untuk panduan lengkap
 
 st.markdown("### 🎬 Ceritakan atau Ketik Judul Film yang Kamu Suka:")
 c0, c1, c2, c3, c4 = st.columns([0.8, 1.8, 2.2, 1.7, 1.5])
-with c0: st.markdown("<p style='font-size:0.75rem;color:#A0A0B5; font-weight:600; margin-top:10px;'>🔥 Populer:</p>", unsafe_allow_html=True)
+with c0: 
+    st.markdown("<p style='font-size:0.75rem;color:#A0A0B5; font-weight:600; margin-top:10px;'>🔥 Populer:</p>", unsafe_allow_html=True)
 
 sc = st.session_state["shortcut_prompts"]
 
@@ -313,16 +325,20 @@ with c3: st.button(sc[2][0], type="secondary", use_container_width=True, on_clic
 with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=True, on_click=surprise_me_action) 
 
 col_inp, col_btn = st.columns([5, 1])
-with col_inp: st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
-with col_btn: st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
+with col_inp: 
+    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
+with col_btn: 
+    st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
 with st.expander("🎛️ Filter Spesifik (Manual Constraint)", expanded=False):
     f_col1, f_col2, f_col3 = st.columns([1, 1.3, 1])
-    with f_col1: pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
+    with f_col1: 
+        pil_genre = st.selectbox("Pilih Genre", ["Otomatis (AI)", "Action", "Comedy", "Drama", "Horror", "Romance"], key="pil_genre_box")
     with f_col2: 
         filter_tahun_aktif = st.checkbox("Gunakan Rentang Tahun")
         pil_rentang_tahun = st.slider("Geser Rentang Tahun Rilis", min_value=1970, max_value=2026, value=(2012, 2021), disabled=not filter_tahun_aktif)
-    with f_col3: pil_negara = st.selectbox("Asal Negara", ["Campuran (AI)", "Hanya Indonesia", "Hanya Internasional"])
+    with f_col3: 
+        pil_negara = st.selectbox("Asal Negara", ["Campuran (AI)", "Hanya Indonesia", "Hanya Internasional"])
     
     st.markdown("<hr style='margin: 10px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
     st.button("🎯 Terapkan Filter & Cari Film", type="primary", use_container_width=True, on_click=trigger_search, key="btn_filter_search")
@@ -335,9 +351,9 @@ if st.session_state["do_search"]:
         st.warning("⚠️ Silakan ketik preferensi/judul film, atau gunakan menu filter di atas terlebih dahulu!")
     else:
         with st.status("🤖 Otak AI sedang memproses...", expanded=True) as status:
-            st.write("🔍 Mengekstrak niat pencarian atau judul film..."); time.sleep(0.5)
-            st.write("🧠 Mencocokkan kemiripan vektor semantik (Sentence-BERT)..."); time.sleep(0.5)
-            st.write("📊 Membandingkan pola laten rating (SVD Matrix)..."); time.sleep(0.5)
+            st.write("🔍 Mengekstrak niat pencarian atau judul film..."); time.sleep(0.3)
+            st.write("🧠 Mencocokkan kemiripan vektor semantik (Sentence-BERT)..."); time.sleep(0.3)
+            st.write("📊 Membandingkan pola laten rating (SVD Matrix)..."); time.sleep(0.3)
             hasil_film, gen, count_mode, yr_info = recommend_system_web(user_query, pil_genre, filter_tahun_aktif, pil_rentang_tahun, pil_negara)
             status.update(label="Rekomendasi Ditemukan!", state="complete", expanded=False)
 
@@ -352,7 +368,8 @@ if st.session_state["do_search"]:
         </div>
         """, unsafe_allow_html=True)
 
-        if len(hasil_film) == 0: st.info("⚠️ Film dengan kriteria tersebut tidak ditemukan di database.")
+        if len(hasil_film) == 0: 
+            st.info("⚠️ Film dengan kriteria tersebut tidak ditemukan di database.")
         else:
             st.markdown(f"""<div class="section-title"><div class="section-dot"></div><h3>Menampilkan {len(hasil_film)} Rekomendasi Terbaik Untukmu</h3></div>""", unsafe_allow_html=True)
             
@@ -368,13 +385,7 @@ if st.session_state["do_search"]:
                         score, y_val = float(item.get('score', 0.5)), item.get('year', '')
                         
                         g_short = genres[:20] + ("…" if len(genres) > 20 else "")
-                        
-                        # LANGSUNG AMBIL BAHASA DARI ITEM TANPA FALLBACK
-                        lang_val = item['language']
-                        
-                        # Atur warna berdasarkan source
-                        src_bg, src_col = ("rgba(69,182,254,0.15)", "#45b6fe") if src == "imdb" else ("rgba(52,211,153,0.15)", "#34d399")
-                        
+                        src_lbl, src_bg, src_col = ("IMDb", "rgba(69,182,254,0.15)", "#45b6fe") if src == "imdb" else ("Indo", "rgba(52,211,153,0.15)", "#34d399")
                         pct, yr_str = min(int(score * 100), 100), f" • {int(float(y_val))}" if y_val else ""
 
                         with cols[j]:
@@ -385,7 +396,7 @@ if st.session_state["do_search"]:
                                     <p class="card-title">{title}</p>
                                     <div class="card-tags">
                                         <span class="card-tag" style="background:rgba(255,255,255,0.1); color:#fff;">{g_short}</span>
-                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{lang_val}{yr_str}</span>
+                                        <span class="card-tag" style="background:{src_bg}; color:{src_col};">{src_lbl}{yr_str}</span>
                                     </div>
                                     <div class="score-bar-wrap">
                                         <div class="score-bar-label">Akurasi AI <span>{pct}%</span></div>
