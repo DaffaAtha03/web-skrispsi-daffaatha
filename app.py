@@ -340,7 +340,7 @@ with c4: st.button("🎲 Surprise Me!", type="secondary", use_container_width=Tr
 
 col_inp, col_btn = st.columns([5, 1])
 with col_inp: 
-    st.text_input("CARI FILM", key="query_input", placeholder="Ketik judul (The Conjuring) atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
+    st.text_input("CARI FILM", key="query_input", placeholder="Ketik yang ingin anda tonton atau nuansa (Film action indo 2019)...", label_visibility="collapsed", on_change=trigger_search)
 with col_btn: 
     st.button("🚀 Cari Film", type="primary", use_container_width=True, on_click=trigger_search)
 
