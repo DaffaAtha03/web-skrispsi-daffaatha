@@ -255,7 +255,7 @@ def init_models_and_data():
         ("senjata api dan pedang", "action"), ("pencak silat kungfu", "action"),
         ("film laga indonesia", "action"), ("misi penyelamatan sandera", "action"),
         ("pertarungan jalanan", "action"), ("invasi alien sci-fi", "action"),
-        ("bertahan hidup survival", "action"), ("film petualangan ekstrem", "action")
+        ("bertahan hidup survival", "action"), ("film petualangan ekstrem", "action"),
         # ================= DRAMA (Makna: Sedih, Relate, Merenung) =================
         ("lagi galau pengen nangis", "drama"), ("butuh tontonan yang relate sama hidup", "drama"), 
         ("healing dari patah hati", "drama"), ("capek sama dunia pengen merenung", "drama"),
