@@ -197,9 +197,99 @@ def init_models_and_data():
     df_movies['clean_title'] = df_movies['title'].apply(_clean)
 
     train_data = [
-        ("film sedih banget","drama"), ("film yang bikin nangis","drama"), ("film romantis","romance"), ("film cinta sejati","romance"),
-        ("film lucu banget","comedy"), ("film komedi seru","comedy"), ("film horor serem","horror"), ("film hantu","horror"),
-        ("film aksi","action"), ("film action seru","action"),
+        # ================= KATEGORI DRAMA =================
+        ("film sedih banget", "drama"), ("film yang bikin nangis", "drama"), 
+        ("kisah tragis menyentuh hati", "drama"), ("film tentang keluarga", "drama"), 
+        ("bikin air mata tumpah", "drama"), ("kehidupan yang berat", "drama"),
+        ("perjuangan hidup miskin", "drama"), ("film inspiratif motivasi", "drama"),
+        ("kisah nyata biografi", "drama"), ("hubungan ibu dan anak", "drama"),
+        ("konflik keluarga", "drama"), ("film tentang penyakit kanker", "drama"),
+        ("drama persahabatan", "drama"), ("kisah haru biru", "drama"),
+        ("film pengorbanan orang tua", "drama"), ("cerita kehidupan sehari hari", "drama"),
+        ("film mengharukan", "drama"), ("drama menyayat hati", "drama"),
+        ("film tentang bullying", "drama"), ("kisah perjuangan sukses", "drama"),
+
+        # ================= KATEGORI ROMANCE =================
+        ("film romantis", "romance"), ("film cinta sejati", "romance"), 
+        ("kisah asmara remaja", "romance"), ("pasangan kekasih baper", "romance"), 
+        ("cinta segitiga", "romance"), ("film patah hati putus cinta", "romance"),
+        ("kisah perselingkuhan pelakor", "romance"), ("film tentang pernikahan", "romance"),
+        ("cinta pada pandangan pertama", "romance"), ("pdkt dan jatuh cinta", "romance"),
+        ("hubungan suami istri", "romance"), ("cinta beda agama", "romance"),
+        ("balikan sama mantan", "romance"), ("kisah cinta anak sekolah", "romance"),
+        ("film romantis bikin baper", "romance"), ("cinta jarak jauh ldr", "romance"),
+        ("film tentang perjodohan", "romance"), ("kisah kasih tak sampai", "romance"),
+        ("cinta bertepuk sebelah tangan", "romance"), ("drama percintaan", "romance"),
+
+        # ================= KATEGORI COMEDY =================
+        ("film lucu banget", "comedy"), ("film komedi seru", "comedy"), 
+        ("bikin ngakak guling guling", "comedy"), ("komedi konyol", "comedy"), 
+        ("stand up comedy", "comedy"), ("film receh", "comedy"),
+        ("humor segar", "comedy"), ("film lawak kocak", "comedy"),
+        ("komedi keluarga absurd", "comedy"), ("film parodi lucu", "comedy"),
+        ("tingkah laku bodoh konyol", "comedy"), ("komedi slapstick", "comedy"),
+        ("film komedi romantis", "comedy"), ("komedi kampus sekolah", "comedy"),
+        ("bikin ketawa terus", "comedy"), ("film warkop dki", "comedy"),
+        ("guyonan kocak", "comedy"), ("komedi satir", "comedy"),
+        ("film dengan banyak candaan", "comedy"), ("komedi situasi sitkom", "comedy"),
+
+        # ================= KATEGORI HORROR =================
+        ("film horor serem", "horror"), ("film hantu", "horror"), 
+        ("kesurupan setan", "horror"), ("rumah hantu menakutkan", "horror"), 
+        ("jumpscare kaget", "horror"), ("thriller psikologis seram", "horror"),
+        ("film pocong kuntilanak", "horror"), ("cerita mistis gaib", "horror"),
+        ("film pesugihan tumbal", "horror"), ("santet dan dukun", "horror"),
+        ("film psikopat pembunuhan", "horror"), ("teror makhluk halus", "horror"),
+        ("cerita legenda urban horor", "horror"), ("kutukan iblis", "horror"),
+        ("berdarah darah gore", "horror"), ("film supranatural", "horror"),
+        ("misteri rumah kosong", "horror"), ("penampakan arwah penasaran", "horror"),
+        ("film horor indonesia", "horror"), ("suasana mencekam dan gelap", "horror"),
+
+        # ================= KATEGORI ACTION =================
+        ("film aksi", "action"), ("film action seru", "action"), 
+        ("baku tembak ledakan", "action"), ("pertarungan bela diri", "action"), 
+        ("balapan mobil kejar kejaran", "action"), ("superhero pahlawan", "action"),
+        ("agen rahasia mata mata", "action"), ("film polisi detektif", "action"),
+        ("perang militer tentara", "action"), ("mafia dan gangster", "action"),
+        ("pencurian perampokan bank", "action"), ("aksi balas dendam", "action"),
+        ("senjata api dan pedang", "action"), ("pencak silat kungfu", "action"),
+        ("film laga indonesia", "action"), ("misi penyelamatan sandera", "action"),
+        ("pertarungan jalanan", "action"), ("invasi alien sci-fi", "action"),
+        ("bertahan hidup survival", "action"), ("film petualangan ekstrem", "action")
+        # ================= DRAMA (Makna: Sedih, Relate, Merenung) =================
+        ("lagi galau pengen nangis", "drama"), ("butuh tontonan yang relate sama hidup", "drama"), 
+        ("healing dari patah hati", "drama"), ("capek sama dunia pengen merenung", "drama"),
+        ("film yang ngasih pelajaran hidup", "drama"), ("bikin overthinking malam hari", "drama"),
+        ("menyentuh lubuk hati terdalam", "drama"), ("nguras emosi dan air mata", "drama"),
+        ("pengen meratapi nasib", "drama"), ("film yang bikin bersyukur", "drama"),
+
+        # ================= ROMANCE (Makna: Kasmaran, Gemes, Uwu) =================
+        ("pengen lihat yang uwu uwu", "romance"), ("bikin senyum senyum sendiri", "romance"), 
+        ("lagi kasmaran sama doi", "romance"), ("butuh asupan keuwuan", "romance"), 
+        ("film yang bikin pengen punya pacar", "romance"), ("salting brutal", "romance"),
+        ("kupu kupu di perut", "romance"), ("vibes orang pacaran", "romance"),
+        ("kisah cinta yang manis dan ringan", "romance"), ("bikin baper maksimal", "romance"),
+
+        # ================= COMEDY (Makna: Hiburan, Penghilang Stres) =================
+        ("butuh hiburan biar ga stres", "comedy"), ("pengen ketawa lepas", "comedy"), 
+        ("bosen pengen yang lucu lucu", "comedy"), ("buat naikin mood yang lagi hancur", "comedy"), 
+        ("film buat nonton santai pas makan", "comedy"), ("lawakan bapak bapak", "comedy"),
+        ("gak butuh mikir cuma mau ketawa", "comedy"), ("penghilang penat setelah kerja", "comedy"),
+        ("film kocak buat nobar temen", "comedy"), ("jokes receh bikin ngakak", "comedy"),
+
+        # ================= HORROR (Makna: Takut, Adrenalin, Uji Nyali) =================
+        ("uji nyali bareng temen", "horror"), ("pengen senam jantung", "horror"), 
+        ("suka yang bikin susah tidur", "horror"), ("suasana gelap dan mencekam", "horror"),
+        ("bikin parno ke kamar mandi", "horror"), ("merinding disko", "horror"),
+        ("pengen teriak ketakutan", "horror"), ("film yang bikin nutup mata pakai bantal", "horror"),
+        ("bikin deg degan parah", "horror"), ("jangan nonton sendirian", "horror"),
+
+        # ================= ACTION (Makna: Seru, Tegang, Menantang) =================
+        ("pengen lihat ledakan dan berantem", "action"), ("memicu adrenalin tinggi", "action"), 
+        ("yang seru dan gak bikin ngantuk", "action"), ("pelarian dari realita yang menegangkan", "action"),
+        ("film cowok banget", "action"), ("keren parah dan badass", "action"),
+        ("bikin nahan napas saking serunya", "action"), ("aksi heroik menyelamatkan dunia", "action"),
+        ("pertarungan epic dan brutal", "action"), ("film yang temponya cepat", "action")
     ]
     texts, labels = [x[0] for x in train_data], [x[1] for x in train_data]
     vectorizer_nlp = TfidfVectorizer()
